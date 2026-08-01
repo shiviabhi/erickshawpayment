@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Rickshaw Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0B1120;
+    --blue:#1E4FE8;
+    --blue-dark:#153CB8;
+    --sky:#4C8DFF;
+    --paper:#F4F7FF;
+    --white:#FFFFFF;
+    --line:#E3E9FA;
+    --success:#16A34A;
+    --success-bg:#EAFBF1;
+    --alert:#DC2626;
+    --alert-bg:#FDECEC;
+    --amber:#D97706;
+    --amber-bg:#FDF3E4;
+    --muted:#6B7590;
+    --radius:16px;
+    --shadow:0 2px 10px rgba(15,30,80,.06), 0 1px 2px rgba(15,30,80,.05);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{margin:0; font-family:'Inter',sans-serif; background:var(--paper); color:var(--ink);}
+  h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;}
+
+  #app{max-width:480px; margin:0 auto; min-height:100vh; background:var(--paper); position:relative; padding-bottom:92px;}
+
+  /* ---------- PIN LOCK ---------- */
+  #pinScreen{position:fixed; inset:0; background:var(--ink); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:100; color:#fff;}
+  #pinScreen .logo{width:56px; height:56px; border-radius:14px; background:linear-gradient(135deg,var(--sky),var(--blue)); display:flex; align-items:center; justify-content:center; font-size:26px; margin-bottom:18px;}
+  #pinScreen h2{margin:0 0 6px; font-size:20px;}
+  #pinScreen p{color:#A9B3D4; font-size:13px; margin:0 0 26px;}
+  .pinDots{display:flex; gap:14px; margin-bottom:28px;}
+  .pinDot{width:14px; height:14px; border-radius:50%; border:2px solid #3A4570; transition:.15s;}
+  .pinDot.filled{background:var(--sky); border-color:var(--sky);}
+  .pinPad{display:grid; grid-template-columns:repeat(3,64px); gap:14px;}
+  .pinKey{width:64px; height:64px; border-radius:50%; border:1px solid #2A3560; background:#151E3D; color:#fff; font-size:20px; font-family:'Space Grotesk'; display:flex; align-items:center; justify-content:center;}
+  .pinKey:active{background:var(--blue);}
+  .pinKey.ghost{border:none; background:none;}
+
+  /* ---------- TOP BAR ---------- */
+  .topbar{position:sticky; top:0; z-index:20; background:var(--paper); padding:18px 18px 10px; display:flex; align-items:center; justify-content:space-between;}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand .mark{width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--sky),var(--blue)); display:flex; align-items:center; justify-content:center; color:#fff; font-size:16px;}
+  .brand span{font-weight:700; font-size:16px;}
+  .brand small{display:block; color:var(--muted); font-size:11px; font-weight:500;}
+
+  .screen{display:none; padding:0 18px 8px; animation:fade .2s ease;}
+  .screen.active{display:block;}
+  @keyframes fade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+
+  /* ---------- ROUTE DIVIDER (signature element) ---------- */
+  .route{display:flex; align-items:center; gap:6px; margin:22px 0 12px; color:var(--muted);}
+  .route .label{font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap;}
+  .route .track{flex:1; height:1px; background-image:linear-gradient(to right, var(--line) 60%, transparent 0%); background-size:8px 1px; background-repeat:repeat-x;}
+  .route .stop{width:5px; height:5px; border-radius:50%; background:var(--sky);}
+
+  /* ---------- HERO CARD ---------- */
+  .hero{background:linear-gradient(135deg,var(--blue) 0%, var(--blue-dark) 100%); border-radius:20px; padding:22px 20px; color:#fff; box-shadow:var(--shadow); position:relative; overflow:hidden;}
+  .hero::after{content:""; position:absolute; right:-30px; top:-30px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,.08);}
+  .hero .eyebrow{font-size:11px; letter-spacing:.08em; text-transform:uppercase; opacity:.75; font-weight:600;}
+  .hero .figure{font-size:38px; font-weight:700; margin:6px 0 2px; display:flex; align-items:baseline; gap:4px;}
+  .hero .figure .cur{font-size:20px; opacity:.8;}
+  .hero .sub{font-size:12.5px; opacity:.85;}
+  .hero .rowstats{display:flex; gap:10px; margin-top:16px;}
+  .hero .stat{flex:1; background:rgba(255,255,255,.12); border-radius:12px; padding:10px 12px;}
+  .hero .stat b{display:block; font-size:16px; font-weight:700;}
+  .hero .stat span{font-size:10.5px; opacity:.8;}
+
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;}
+  .kpi{background:var(--white); border-radius:14px; padding:14px; box-shadow:var(--shadow);}
+  .kpi .top{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .kpi .ico{width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px;}
+  .kpi.due .ico{background:var(--alert-bg); color:var(--alert);}
+  .kpi.exp .ico{background:var(--amber-bg); color:var(--amber);}
+  .kpi .val{font-size:19px; font-weight:700;}
+  .kpi .lbl{font-size:11px; color:var(--muted); font-weight:500;}
+
+  .sectionTitle{display:flex; align-items:center; justify-content:space-between; margin:20px 0 10px;}
+  .sectionTitle h3{margin:0; font-size:14px; font-weight:700;}
+  .sectionTitle a{font-size:12px; color:var(--blue); font-weight:600; text-decoration:none;}
+
+  .card{background:var(--white); border-radius:14px; padding:13px 14px; box-shadow:var(--shadow); margin-bottom:9px; display:flex; align-items:center; gap:12px;}
+  .card .avatar{width:38px; height:38px; border-radius:10px; background:var(--paper); display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
+  .card .body{flex:1; min-width:0;}
+  .card .name{font-size:13.5px; font-weight:600;}
+  .card .meta{font-size:11.5px; color:var(--muted); margin-top:1px;}
+  .card .amt{font-size:14.5px; font-weight:700;}
+  .amt.pos{color:var(--success);}
+  .amt.neg{color:var(--alert);}
+
+  /* number plate chip - signature detail */
+  .plate{display:inline-flex; align-items:center; justify-content:center; background:linear-gradient(180deg,#FFE066,#FBCB2E); color:#111; font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:10.5px; letter-spacing:.03em; border:1.5px solid #111; border-radius:4px; padding:3px 6px; white-space:nowrap;}
+
+  .empty{text-align:center; padding:34px 10px; color:var(--muted);}
+  .empty .ico{font-size:30px; margin-bottom:8px;}
+  .empty p{font-size:12.5px; margin:2px 0 0;}
+
+  /* ---------- FORMS ---------- */
+  label{display:block; font-size:12px; font-weight:600; color:var(--muted); margin:14px 0 6px;}
+  label:first-of-type{margin-top:4px;}
+  input[type=text], input[type=number], input[type=date], input[type=tel], select, textarea{
+    width:100%; padding:13px 14px; border-radius:12px; border:1.5px solid var(--line); background:var(--white); font-size:14.5px; font-family:'Inter'; color:var(--ink);
+  }
+  input.mono, .amountInput{font-family:'IBM Plex Mono'; font-weight:600;}
+  input:focus, select:focus, textarea:focus{outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(30,79,232,.12);}
+  textarea{resize:vertical; min-height:60px;}
+
+  .segBtns{display:flex; gap:8px;}
+  .segBtn{flex:1; padding:12px 8px; border-radius:12px; border:1.5px solid var(--line); background:var(--white); font-size:12.5px; font-weight:600; text-align:center; color:var(--muted);}
+  .segBtn.active{border-color:var(--blue); background:#EEF2FF; color:var(--blue);}
+
+  .catBtns{display:grid; grid-template-columns:repeat(2,1fr); gap:9px;}
+  .catBtn{padding:14px 10px; border-radius:14px; border:1.5px solid var(--line); background:var(--white); text-align:left;}
+  .catBtn .em{font-size:18px; display:block; margin-bottom:4px;}
+  .catBtn .tx{font-size:12.5px; font-weight:700;}
+  .catBtn.active{border-color:var(--amber); background:var(--amber-bg);}
+
+  .primaryBtn{width:100%; padding:15px; border:none; border-radius:14px; background:var(--blue); color:#fff; font-size:14.5px; font-weight:700; font-family:'Space Grotesk'; margin-top:20px; box-shadow:0 6px 16px rgba(30,79,232,.28);}
+  .primaryBtn:active{background:var(--blue-dark);}
+  .primaryBtn.amber{background:var(--amber); box-shadow:0 6px 16px rgba(217,119,6,.28);}
+  .primaryBtn:disabled{opacity:.5;}
+  .ghostBtn{width:100%; padding:13px; border-radius:14px; border:1.5px dashed var(--line); background:none; color:var(--blue); font-weight:600; font-size:13px; margin-top:8px;}
+
+  .driverPicker{max-height:260px; overflow-y:auto; border:1.5px solid var(--line); border-radius:12px; background:#fff;}
+  .driverRow{display:flex; align-items:center; gap:10px; padding:11px 12px; border-bottom:1px solid var(--line); }
+  .driverRow:last-child{border-bottom:none;}
+  .driverRow.selected{background:#EEF2FF;}
+  .driverRow .body{flex:1;}
+  .driverRow .nm{font-size:13px; font-weight:600;}
+  .driverRow .due{font-size:11px; margin-top:1px;}
+
+  /* ---------- FAB / NAV ---------- */
+  .navbar{position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:480px; background:#fff; border-top:1px solid var(--line); display:flex; padding:8px 6px 10px; box-shadow:0 -4px 14px rgba(15,30,80,.06); z-index:30;}
+  .navItem{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 0; color:var(--muted); font-size:10px; font-weight:600;}
+  .navItem .ic{width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:16px;}
+  .navItem.active{color:var(--blue);}
+
+  /* ---------- MODAL ---------- */
+  .modalWrap{position:fixed; inset:0; background:rgba(11,17,32,.5); z-index:60; display:none; align-items:flex-end;}
+  .modalWrap.open{display:flex;}
+  .modal{background:#fff; width:100%; max-width:480px; margin:0 auto; border-radius:20px 20px 0 0; padding:20px; max-height:82vh; overflow-y:auto; animation:slideUp .22s ease;}
+  @keyframes slideUp{from{transform:translateY(30px); opacity:0;} to{transform:none; opacity:1;}}
+  .modal .handle{width:36px; height:4px; background:var(--line); border-radius:3px; margin:0 auto 14px;}
+  .modal .mHead{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .modal .mHead h3{margin:0; font-size:16px;}
+  .closeX{width:28px; height:28px; border-radius:50%; background:var(--paper); border:none; font-size:14px; color:var(--muted);}
+
+  .toast{position:fixed; bottom:100px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--ink); color:#fff; padding:11px 18px; border-radius:12px; font-size:13px; font-weight:600; z-index:80; opacity:0; transition:.25s; pointer-events:none;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  .loadingOverlay{position:fixed; inset:0; background:var(--paper); z-index:90; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;}
+  .spinner{width:32px; height:32px; border:3px solid var(--line); border-top-color:var(--blue); border-radius:50%; animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .searchBox{position:relative; margin-bottom:12px;}
+  .searchBox input{padding-left:38px;}
+  .searchBox .sIco{position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:14px;}
+</style>
+</head>
+<body>
+
+<div id="pinScreen">
+  <div class="logo">🛺</div>
+  <h2 id="pinTitle">Set a 4-digit PIN</h2>
+  <p id="pinSub">Protects your collection data</p>
+  <div class="pinDots" id="pinDots"></div>
+  <div class="pinPad" id="pinPad"></div>
+</div>
+
+<div id="loadingOverlay" class="loadingOverlay" style="display:none;">
+  <div class="spinner"></div>
+  <div style="font-size:12.5px;color:var(--muted);font-weight:600;">Syncing with sheet…</div>
+</div>
+
+<div id="app" style="display:none;">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">🛺</div>
+      <div><span>Rickshaw Ledger</span><small id="todayLabel">—</small></div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button id="langToggle" onclick="toggleLang()" style="background:#EEF2FF;border:1.5px solid var(--line);color:var(--blue);font-weight:700;font-size:11px;padding:6px 10px;border-radius:20px;">हिं</button>
+      <button onclick="refreshAll(true)" style="background:none;border:none;font-size:18px;color:var(--muted);">⟳</button>
+    </div>
+  </div>
+
+  <!-- HOME -->
+  <div class="screen active" id="screen-home">
+    <div class="hero" onclick="showScreen('payment')" style="cursor:pointer;" title="Record a payment">
+      <div class="eyebrow" data-i18n="todayCollection">Today's collection</div>
+      <div class="figure"><span class="cur">₹</span><span class="mono" id="todayCollection">0</span></div>
+      <div class="sub" id="todayCount">0 payments received today</div>
+      <div class="rowstats">
+        <div class="stat" onclick="event.stopPropagation(); showScreen('drivers');" style="cursor:pointer;"><b class="mono" id="activeDriversCount">0</b><span data-i18n="activeDrivers">Active drivers</span></div>
+        <div class="stat" onclick="event.stopPropagation(); showScreen('drivers');" style="cursor:pointer;"><b class="mono" id="paidTodayCount">0</b><span data-i18n="paidToday">Paid today</span></div>
+        <div class="stat" onclick="event.stopPropagation(); showScreen('drivers');" style="cursor:pointer;"><b class="mono" id="pendingTodayCount">0</b><span data-i18n="pendingToday">Pending today</span></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="kpi due" onclick="showScreen('drivers')" style="cursor:pointer;" title="View drivers with dues">
+        <div class="top"><span class="lbl" data-i18n="totalDueLbl">Total Due</span><span class="ico">⚠</span></div>
+        <div class="val mono" id="totalDue">₹0</div>
+        <div class="lbl" data-i18n="acrossAll">across all drivers</div>
+      </div>
+      <div class="kpi exp" onclick="showScreen('expenses')" style="cursor:pointer;" title="View expenses">
+        <div class="top"><span class="lbl" data-i18n="expensesMonth">Expenses (mo.)</span><span class="ico">🔧</span></div>
+        <div class="val mono" id="monthExpense">₹0</div>
+        <div class="lbl" data-i18n="expenseSub">service · parts · repair</div>
+      </div>
+    </div>
+
+    <div class="route"><span class="stop"></span><div class="track"></div><span class="label" data-i18n="last7Days">Last 7 days</span><div class="track"></div></div>
+    <div class="card" style="display:block; padding:16px 14px 10px;">
+      <div id="weeklyChartWrap"></div>
+    </div>
+
+    <div class="route"><span class="stop"></span><div class="track"></div><span class="label" data-i18n="recentActivity">Recent activity</span><div class="track"></div></div>
+
+    <div id="recentList"></div>
+
+    <div class="route"><span class="stop"></span><div class="track"></div><span class="label" data-i18n="topPendingDues">Top pending dues</span><div class="track"></div></div>
+    <div id="topDueList"></div>
+  </div>
+
+  <!-- ADD PAYMENT -->
+  <div class="screen" id="screen-payment">
+    <div class="sectionTitle" style="margin-top:18px;"><h3 data-i18n="recordPayment">Record a payment</h3></div>
+
+    <label data-i18n="driverPlateLbl">Driver / number plate</label>
+    <div class="searchBox">
+      <span class="sIco">🔍</span>
+      <input type="text" id="driverSearch" placeholder="Search name or plate no." data-i18n-ph="searchPlaceholder" oninput="renderDriverPicker()">
+    </div>
+    <div class="driverPicker" id="driverPicker"></div>
+
+    <div id="paymentFormFields" style="display:none;">
+      <label data-i18n="dateLbl">Date</label>
+      <input type="date" id="pDate">
+
+      <label data-i18n="rentForDay">Rent for the day (₹)</label>
+      <input type="number" inputmode="numeric" class="amountInput" id="pRent">
+
+      <label data-i18n="amountReceived">Amount received (₹)</label>
+      <input type="number" inputmode="numeric" class="amountInput" id="pReceived" placeholder="0">
+
+      <label data-i18n="paymentModeLbl">Payment mode</label>
+      <div class="segBtns" id="modeBtns">
+        <div class="segBtn active" data-mode="Cash" onclick="selectMode(this)">💵 <span data-i18n="cashLbl">Cash</span></div>
+        <div class="segBtn" data-mode="UPI" onclick="selectMode(this)">📱 UPI</div>
+      </div>
+
+      <label data-i18n="remarksOptional">Remarks (optional)</label>
+      <textarea id="pRemarks" placeholder="e.g. half day, vehicle repair leave" data-i18n-ph="remarksPh"></textarea>
+
+      <div id="dueSummaryBox" style="margin-top:14px; padding:12px 14px; background:#fff; border-radius:12px; border:1.5px solid var(--line); font-size:12.5px;"></div>
+
+      <button class="primaryBtn" onclick="submitPayment()" id="submitPaymentBtn" data-i18n="savePayment">Save payment</button>
+    </div>
+  </div>
+
+  <!-- DRIVERS -->
+  <div class="screen" id="screen-drivers">
+    <div class="sectionTitle" style="margin-top:18px;"><h3 data-i18n="driversTitle">Drivers</h3><a onclick="openAddDriver()" data-i18n="addDriverLink">+ Add driver</a></div>
+    <div class="searchBox">
+      <span class="sIco">🔍</span>
+      <input type="text" id="driversListSearch" placeholder="Search name or plate no." data-i18n-ph="searchPlaceholder" oninput="renderDriversList()">
+    </div>
+    <div id="driversList"></div>
+  </div>
+
+  <!-- EXPENSES -->
+  <div class="screen" id="screen-expenses">
+    <div class="sectionTitle" style="margin-top:18px;"><h3 data-i18n="logExpense">Log an expense</h3></div>
+    <label data-i18n="categoryLbl">Category</label>
+    <div class="catBtns" id="catBtns" style="grid-template-columns:repeat(3,1fr);">
+      <div class="catBtn active" data-cat="Service" onclick="selectCat(this)"><span class="em">🧰</span><span class="tx">Service</span></div>
+      <div class="catBtn" data-cat="Parts" onclick="selectCat(this)"><span class="em">⚙️</span><span class="tx">Parts</span></div>
+      <div class="catBtn" data-cat="Repair" onclick="selectCat(this)"><span class="em">🔩</span><span class="tx">Repair</span></div>
+      <div class="catBtn" data-cat="Battery" onclick="selectCat(this)"><span class="em">🔋</span><span class="tx">Battery</span></div>
+      <div class="catBtn" data-cat="Tyre" onclick="selectCat(this)"><span class="em">🛞</span><span class="tx">Tyre</span></div>
+      <div class="catBtn" data-cat="Charging" onclick="selectCat(this)"><span class="em">🔌</span><span class="tx">Charging</span></div>
+      <div class="catBtn" data-cat="Insurance" onclick="selectCat(this)"><span class="em">🛡️</span><span class="tx">Insurance</span></div>
+      <div class="catBtn" data-cat="Challan" onclick="selectCat(this)"><span class="em">🚨</span><span class="tx">Challan</span></div>
+      <div class="catBtn" data-cat="Cleaning" onclick="selectCat(this)"><span class="em">🧼</span><span class="tx">Cleaning</span></div>
+      <div class="catBtn" data-cat="Advance" onclick="selectCat(this)"><span class="em">💰</span><span class="tx">Driver Adv.</span></div>
+      <div class="catBtn" data-cat="Other" onclick="selectCat(this)"><span class="em">📦</span><span class="tx">Other</span></div>
+    </div>
+
+    <label data-i18n="dateLbl">Date</label>
+    <input type="date" id="eDate">
+
+    <label data-i18n="vehiclePlateOptional">Vehicle / number plate (optional)</label>
+    <select id="eVehicle"><option value="" data-i18n="generalFleet">General / fleet-wide</option></select>
+
+    <label data-i18n="amountLbl">Amount (₹)</label>
+    <input type="number" inputmode="numeric" class="amountInput" id="eAmount" placeholder="0">
+
+    <label data-i18n="descriptionLbl">Description</label>
+    <textarea id="eDesc" placeholder="e.g. new tyre, motor service" data-i18n-ph="expenseDescPh"></textarea>
+
+    <button class="primaryBtn amber" onclick="submitExpense()" data-i18n="saveExpense">Save expense</button>
+
+    <div class="sectionTitle"><h3 data-i18n="recentExpenses">Recent expenses</h3></div>
+    <div id="expensesList"></div>
+  </div>
+
+  <div class="navbar">
+    <div class="navItem active" data-screen="home" onclick="showScreen('home')"><div class="ic">🏠</div><span data-i18n="navHome">Home</span></div>
+    <div class="navItem" data-screen="payment" onclick="showScreen('payment')"><div class="ic">➕</div><span data-i18n="navPayment">Payment</span></div>
+    <div class="navItem" data-screen="drivers" onclick="showScreen('drivers')"><div class="ic">🛺</div><span data-i18n="navDrivers">Drivers</span></div>
+    <div class="navItem" data-screen="expenses" onclick="showScreen('expenses')"><div class="ic">🔧</div><span data-i18n="navExpenses">Expenses</span></div>
+  </div>
+</div>
+
+<!-- DRIVER HISTORY MODAL -->
+<div class="modalWrap" id="historyModal">
+  <div class="modal">
+    <div class="handle"></div>
+    <div class="mHead"><h3 id="historyDriverName">Driver</h3><button class="closeX" onclick="closeModal('historyModal')">✕</button></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
+      <button class="ghostBtn" style="margin:0;" onclick="openEditDriver()">✏️ <span data-i18n="editBtn">Edit</span></button>
+      <button class="ghostBtn" style="margin:0;" onclick="openAdjustDue()">⚖️ <span data-i18n="dueBtn">Due</span></button>
+      <button class="ghostBtn" style="margin:0; color:#128C4A; border-color:#CFF3DC;" onclick="sendWhatsAppReminder(currentHistoryDriverId)">📱 <span data-i18n="remindBtn">Remind</span></button>
+      <button class="ghostBtn" style="margin:0; color:#0A7EA4; border-color:#CDEFF9;" onclick="sendSMSReminder(currentHistoryDriverId)">💬 <span data-i18n="textBtn">Text</span></button>
+    </div>
+    <button class="ghostBtn" style="margin:0 0 14px; color:var(--alert); border-color:var(--alert-bg); width:100%;" onclick="confirmDeleteDriver()">🗑 <span data-i18n="deleteDriverBtn">Delete driver</span></button>
+    <div id="historyContent"></div>
+  </div>
+</div>
+
+<!-- EDIT DRIVER MODAL -->
+<div class="modalWrap" id="editDriverModal">
+  <div class="modal">
+    <div class="handle"></div>
+    <div class="mHead"><h3 data-i18n="editDriverTitle">Edit driver</h3><button class="closeX" onclick="closeModal('editDriverModal')">✕</button></div>
+    <label data-i18n="driverNameLbl">Driver name</label>
+    <input type="text" id="edName">
+    <label data-i18n="numberPlateLbl">Number plate</label>
+    <input type="text" id="edPlate" style="text-transform:uppercase;">
+    <label data-i18n="mobileNumberLbl">Mobile number</label>
+    <input type="tel" id="edMobile">
+    <label data-i18n="dailyRentLbl">Daily rent (₹)</label>
+    <input type="number" inputmode="numeric" class="amountInput" id="edRent">
+    <label data-i18n="statusLbl">Status</label>
+    <div class="segBtns" id="edStatusBtns">
+      <div class="segBtn active" data-status="Active" onclick="selectEdStatus(this)" data-i18n="statusActive">Active</div>
+      <div class="segBtn" data-status="Inactive" onclick="selectEdStatus(this)" data-i18n="statusInactive">Inactive</div>
+    </div>
+    <button class="primaryBtn" onclick="submitEditDriver()" data-i18n="saveChanges">Save changes</button>
+  </div>
+</div>
+
+<!-- ADJUST DUE MODAL -->
+<div class="modalWrap" id="adjustDueModal">
+  <div class="modal">
+    <div class="handle"></div>
+    <div class="mHead"><h3 data-i18n="adjustDueTitle">Adjust due</h3><button class="closeX" onclick="closeModal('adjustDueModal')">✕</button></div>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 4px;" data-i18n="adjustDueDesc">Use this to correct a mistake or waive part of the due — not tied to an actual cash/UPI payment.</p>
+    <label data-i18n="directionLbl">Direction</label>
+    <div class="segBtns" id="adjDirBtns">
+      <div class="segBtn active" data-dir="1" onclick="selectAdjDir(this)">⬆ <span data-i18n="increaseDue">Increase due</span></div>
+      <div class="segBtn" data-dir="-1" onclick="selectAdjDir(this)">⬇ <span data-i18n="reduceDue">Reduce due</span></div>
+    </div>
+    <label data-i18n="amountLbl">Amount (₹)</label>
+    <input type="number" inputmode="numeric" class="amountInput" id="adjAmount" placeholder="0">
+    <label data-i18n="reasonLbl">Reason</label>
+    <textarea id="adjReason" placeholder="e.g. waived for festival, entry correction" data-i18n-ph="reasonPh"></textarea>
+    <button class="primaryBtn" onclick="submitAdjustDue()" data-i18n="saveAdjustment">Save adjustment</button>
+  </div>
+</div>
+
+<!-- EDIT PAYMENT MODAL -->
+<div class="modalWrap" id="editPaymentModal">
+  <div class="modal">
+    <div class="handle"></div>
+    <div class="mHead"><h3 data-i18n="editPaymentTitle">Edit payment</h3><button class="closeX" onclick="closeModal('editPaymentModal')">✕</button></div>
+    <label data-i18n="dateLbl">Date</label>
+    <input type="date" id="epDate">
+    <label data-i18n="rentForDay">Rent for the day (₹)</label>
+    <input type="number" inputmode="numeric" class="amountInput" id="epRent">
+    <label data-i18n="amountReceived">Amount received (₹)</label>
+    <input type="number" inputmode="numeric" class="amountInput" id="epReceived">
+    <label data-i18n="paymentModeLbl">Payment mode</label>
+    <div class="segBtns" id="epModeBtns">
+      <div class="segBtn active" data-mode="Cash" onclick="selectEpMode(this)">💵 <span data-i18n="cashLbl">Cash</span></div>
+      <div class="segBtn" data-mode="UPI" onclick="selectEpMode(this)">📱 UPI</div>
+    </div>
+    <label data-i18n="remarksLbl">Remarks</label>
+    <textarea id="epRemarks"></textarea>
+    <button class="primaryBtn" onclick="submitEditPayment()" data-i18n="saveChanges">Save changes</button>
+    <button class="ghostBtn" style="color:var(--alert);" onclick="confirmDeletePayment()">🗑 <span data-i18n="deletePaymentBtn">Delete this payment</span></button>
+  </div>
+</div>
+
+<!-- EDIT EXPENSE MODAL -->
+<div class="modalWrap" id="editExpenseModal">
+  <div class="modal">
+    <div class="handle"></div>
+    <div class="mHead"><h3 data-i18n="editExpenseTitle">Edit expense</h3><button class="closeX" onclick="closeModal('editExpenseModal')">✕</button></div>
+    <label data-i18n="categoryLbl">Category</label>
+    <div class="catBtns" id="eeCatBtns" style="grid-template-columns:repeat(3,1fr);">
+      <div class="catBtn active" data-cat="Service" onclick="selectEeCat(this)"><span class="em">🧰</span><span class="tx">Service</span></div>
+      <div class="catBtn" data-cat="Parts" onclick="selectEeCat(this)"><span class="em">⚙️</span><span class="tx">Parts</span></div>
+      <div class="catBtn" data-cat="Repair" onclick="selectEeCat(this)"><span class="em">🔩</span><span class="tx">Repair</span></div>
+      <div class="catBtn" data-cat="Battery" onclick="selectEeCat(this)"><span class="em">🔋</span><span class="tx">Battery</span></div>
+      <div class="catBtn" data-cat="Tyre" onclick="selectEeCat(this)"><span class="em">🛞</span><span class="tx">Tyre</span></div>
+      <div class="catBtn" data-cat="Charging" onclick="selectEeCat(this)"><span class="em">🔌</span><span class="tx">Charging</span></div>
+      <div class="catBtn" data-cat="Insurance" onclick="selectEeCat(this)"><span class="em">🛡️</span><span class="tx">Insurance</span></div>
+      <div class="catBtn" data-cat="Challan" onclick="selectEeCat(this)"><span class="em">🚨</span><span class="tx">Challan</span></div>
+      <div class="catBtn" data-cat="Cleaning" onclick="selectEeCat(this)"><span class="em">🧼</span><span class="tx">Cleaning</span></div>
+      <div class="catBtn" data-cat="Advance" onclick="selectEeCat(this)"><span class="em">💰</span><span class="tx">Driver Adv.</span></div>
+      <div class="catBtn" data-cat="Other" onclick="selectEeCat(this)"><span class="em">📦</span><span class="tx">Other</span></div>
+    </div>
+    <label data-i18n="dateLbl">Date</label>
+    <input type="date" id="eeDate">
+    <label data-i18n="amountLbl">Amount (₹)</label>
+    <input type="number" inputmode="numeric" class="amountInput" id="eeAmount">
+    <label data-i18n="descriptionLbl">Description</label>
+    <textarea id="eeDesc"></textarea>
+    <button class="primaryBtn amber" onclick="submitEditExpense()" data-i18n="saveChanges">Save changes</button>
+    <button class="ghostBtn" style="color:var(--alert);" onclick="confirmDeleteExpense()">🗑 <span data-i18n="deleteExpenseBtn">Delete this expense</span></button>
+  </div>
+</div>
+
+<!-- ADD DRIVER MODAL -->
+<div class="modalWrap" id="addDriverModal">
+  <div class="modal">
+    <div class="handle"></div>
+    <div class="mHead"><h3 data-i18n="addDriverTitle">Add driver</h3><button class="closeX" onclick="closeModal('addDriverModal')">✕</button></div>
+    <label data-i18n="driverNameLbl">Driver name</label>
+    <input type="text" id="ndName" placeholder="Full name" data-i18n-ph="fullNamePh">
+    <label data-i18n="numberPlateLbl">Number plate</label>
+    <input type="text" id="ndPlate" placeholder="UP65 XX 1234" style="text-transform:uppercase;">
+    <label data-i18n="mobileNumberLbl">Mobile number</label>
+    <input type="tel" id="ndMobile" placeholder="10-digit mobile" data-i18n-ph="mobilePh">
+    <label data-i18n="dailyRentLbl">Daily rent (₹)</label>
+    <input type="number" inputmode="numeric" class="amountInput" id="ndRent" placeholder="e.g. 250">
+    <label data-i18n="joiningDateLbl">Joining date</label>
+    <input type="date" id="ndJoin">
+    <label data-i18n="openingDueLbl">Opening due, if any (₹)</label>
+    <input type="number" inputmode="numeric" class="amountInput" id="ndOpening" placeholder="0">
+    <button class="primaryBtn" onclick="submitNewDriver()" data-i18n="addDriverBtn">Add driver</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ CONFIG ============ */
+const CONFIG = {
+  API_URL: "https://script.google.com/macros/s/AKfycbykMun-IeDvNtvaF3TJk3dVMlSEGYSI6-7xgMxkJkt9ROXNqr1ADu-_Oss8z-qvugSr/exec"
+};
+
+/* ============ STATE ============ */
+let DATA = { drivers: [], payments: [], expenses: [] };
+let selectedDriver = null;
+let selectedMode = 'Cash';
+let selectedCat = 'Service';
+
+/* ============ LANGUAGE / i18n ============ */
+let LANG = localStorage.getItem('rl_lang') || 'en';
+
+const T = {
+  en: {
+    todayCollection:"Today's collection", activeDrivers:"Active drivers", paidToday:"Paid today", pendingToday:"Pending today",
+    totalDueLbl:"Total Due", acrossAll:"across all drivers", expensesMonth:"Expenses (mo.)", expenseSub:"service · parts · repair",
+    last7Days:"Last 7 days", weekTotal:"7-day total", recentActivity:"Recent activity", topPendingDues:"Top pending dues",
+    recordPayment:"Record a payment", driverPlateLbl:"Driver / number plate", searchPlaceholder:"Search name or plate no.",
+    dateLbl:"Date", rentForDay:"Rent for the day (₹)", amountReceived:"Amount received (₹)", paymentModeLbl:"Payment mode",
+    cashLbl:"Cash", remarksOptional:"Remarks (optional)", remarksPh:"e.g. half day, vehicle repair leave", savePayment:"Save payment",
+    driversTitle:"Drivers", addDriverLink:"+ Add driver", logExpense:"Log an expense", categoryLbl:"Category",
+    vehiclePlateOptional:"Vehicle / number plate (optional)", generalFleet:"General / fleet-wide", amountLbl:"Amount (₹)",
+    descriptionLbl:"Description", expenseDescPh:"e.g. new tyre, motor service", saveExpense:"Save expense", recentExpenses:"Recent expenses",
+    navHome:"Home", navPayment:"Payment", navDrivers:"Drivers", navExpenses:"Expenses",
+    editBtn:"Edit", dueBtn:"Due", remindBtn:"Remind", textBtn:"Text", deleteDriverBtn:"Delete driver",
+    editDriverTitle:"Edit driver", driverNameLbl:"Driver name", numberPlateLbl:"Number plate", mobileNumberLbl:"Mobile number",
+    dailyRentLbl:"Daily rent (₹)", statusLbl:"Status", statusActive:"Active", statusInactive:"Inactive", saveChanges:"Save changes",
+    adjustDueTitle:"Adjust due", adjustDueDesc:"Use this to correct a mistake or waive part of the due — not tied to an actual cash/UPI payment.",
+    directionLbl:"Direction", increaseDue:"Increase due", reduceDue:"Reduce due", reasonLbl:"Reason", reasonPh:"e.g. waived for festival, entry correction",
+    saveAdjustment:"Save adjustment", editPaymentTitle:"Edit payment", remarksLbl:"Remarks", deletePaymentBtn:"Delete this payment",
+    editExpenseTitle:"Edit expense", deleteExpenseBtn:"Delete this expense", addDriverTitle:"Add driver", fullNamePh:"Full name",
+    mobilePh:"10-digit mobile", joiningDateLbl:"Joining date", openingDueLbl:"Opening due, if any (₹)", addDriverBtn:"Add driver",
+    pinSetTitle:"Set a 4-digit PIN", pinSetSub:"Protects your collection data", pinConfirmTitle:"Confirm PIN", pinConfirmSub:"Enter it once more",
+    pinEnterTitle:"Enter PIN", pinEnterSub:"Rickshaw Ledger is locked", pinWrong:"Wrong PIN — try again", pinMismatch:"PINs didn't match — try again",
+    dailyRentWord:"Daily rent", pendingDue:"Pending due", advanceSettled:"Advance / settled", tapToEdit:"Tap any entry to edit or delete it",
+    noPaymentsYet2:"No payments recorded yet", emptyPaymentsTitle:"No payments yet", emptyPaymentsSub:"Tap the Payment tab to record the first one.",
+    emptyDueTitle:"All caught up", emptyDueSub:"No pending dues right now.", emptyDriversTitle:"No drivers yet",
+    emptyDriversSub:"Tap \"+ Add driver\" to onboard your first e-rickshaw.", emptyExpensesTitle:"No expenses logged",
+    emptyExpensesSub:"Service, parts and repair costs will show up here.",
+    selectDriverFirst:"Select a driver first", pickDate:"Pick a date", paymentSavedToast:"Payment saved ✓",
+    fillDriverFields:"Fill name, plate and daily rent", driverAddedToast:"Driver added ✓", driverUpdatedToast:"Driver updated ✓",
+    driverDeletedToast:"Driver deleted", dueAdjustedToast:"Due adjusted ✓", enterAmount:"Enter an amount",
+    paymentUpdatedToast:"Payment updated ✓", paymentDeletedToast:"Payment deleted", deletePaymentConfirm:"Delete this payment entry? Due amounts will be recalculated.",
+    deleteDriverConfirm:"This also removes their entire payment history. This can't be undone.",
+    expenseSavedToast:"Expense saved ✓", expenseUpdatedToast:"Expense updated ✓", expenseDeletedToast:"Expense deleted",
+    deleteExpenseConfirm:"Delete this expense entry?", syncFailToast:"⚠ Save failed, resyncing — try again",
+    syncedToast:"Synced ✓", couldNotReach:"Could not reach sheet — check connection", noMobileToast:"No valid mobile number saved for this driver",
+    settled:"settled", due:"due", adv:"adv", whatsappDueMsg:(name,due,plate,rent)=>`Namaste ${name} ji,\n\nAapka pending due ₹${due} hai (Vehicle: ${plate}, ₹${rent}/day).\nKripya jald se jald bhugtan kar dein.\n\nDhanyavad!`,
+    whatsappSettledMsg:(name)=>`Namaste ${name} ji,\n\nAapka account settled hai, koi due pending nahi hai. Dhanyavad!`
+  },
+  hi: {
+    todayCollection:"आज की वसूली", activeDrivers:"सक्रिय ड्राइवर", paidToday:"आज भुगतान", pendingToday:"आज बकाया",
+    totalDueLbl:"कुल बकाया", acrossAll:"सभी ड्राइवरों का", expensesMonth:"खर्च (माह)", expenseSub:"सर्विस · पार्ट्स · रिपेयर",
+    last7Days:"पिछले 7 दिन", weekTotal:"7-दिन का कुल", recentActivity:"हाल की गतिविधि", topPendingDues:"सबसे ज़्यादा बकाया",
+    recordPayment:"भुगतान दर्ज करें", driverPlateLbl:"ड्राइवर / नंबर प्लेट", searchPlaceholder:"नाम या प्लेट नंबर खोजें",
+    dateLbl:"तारीख़", rentForDay:"आज का किराया (₹)", amountReceived:"मिली हुई राशि (₹)", paymentModeLbl:"भुगतान का तरीका",
+    cashLbl:"नकद", remarksOptional:"टिप्पणी (वैकल्पिक)", remarksPh:"जैसे: आधा दिन, गाड़ी रिपेयर पर छुट्टी", savePayment:"भुगतान सेव करें",
+    driversTitle:"ड्राइवर", addDriverLink:"+ नया ड्राइवर", logExpense:"खर्च दर्ज करें", categoryLbl:"श्रेणी",
+    vehiclePlateOptional:"गाड़ी / नंबर प्लेट (वैकल्पिक)", generalFleet:"सामान्य / पूरे फ्लीट का", amountLbl:"राशि (₹)",
+    descriptionLbl:"विवरण", expenseDescPh:"जैसे: नया टायर, मोटर सर्विस", saveExpense:"खर्च सेव करें", recentExpenses:"हाल के खर्च",
+    navHome:"होम", navPayment:"भुगतान", navDrivers:"ड्राइवर", navExpenses:"खर्च",
+    editBtn:"एडिट", dueBtn:"बकाया", remindBtn:"याद दिलाएं", textBtn:"SMS", deleteDriverBtn:"ड्राइवर हटाएं",
+    editDriverTitle:"ड्राइवर एडिट करें", driverNameLbl:"ड्राइवर का नाम", numberPlateLbl:"नंबर प्लेट", mobileNumberLbl:"मोबाइल नंबर",
+    dailyRentLbl:"रोज़ का किराया (₹)", statusLbl:"स्थिति", statusActive:"सक्रिय", statusInactive:"निष्क्रिय", saveChanges:"बदलाव सेव करें",
+    adjustDueTitle:"बकाया ठीक करें", adjustDueDesc:"किसी गलती को ठीक करने या बकाया माफ़ करने के लिए — यह असली नकद/UPI भुगतान नहीं है।",
+    directionLbl:"दिशा", increaseDue:"बकाया बढ़ाएं", reduceDue:"बकाया घटाएं", reasonLbl:"कारण", reasonPh:"जैसे: त्योहार पर माफ़ किया, गलती सुधार",
+    saveAdjustment:"बदलाव सेव करें", editPaymentTitle:"भुगतान एडिट करें", remarksLbl:"टिप्पणी", deletePaymentBtn:"यह भुगतान हटाएं",
+    editExpenseTitle:"खर्च एडिट करें", deleteExpenseBtn:"यह खर्च हटाएं", addDriverTitle:"नया ड्राइवर जोड़ें", fullNamePh:"पूरा नाम",
+    mobilePh:"10-अंकों का मोबाइल", joiningDateLbl:"ज्वाइनिंग तारीख़", openingDueLbl:"शुरुआती बकाया, अगर हो (₹)", addDriverBtn:"ड्राइवर जोड़ें",
+    pinSetTitle:"4-अंकों का PIN बनाएं", pinSetSub:"आपके डेटा को सुरक्षित रखने के लिए", pinConfirmTitle:"PIN confirm करें", pinConfirmSub:"दोबारा डालें",
+    pinEnterTitle:"PIN डालें", pinEnterSub:"Rickshaw Ledger लॉक है", pinWrong:"गलत PIN — फिर कोशिश करें", pinMismatch:"PIN मैच नहीं हुआ — फिर कोशिश करें",
+    dailyRentWord:"रोज़ का किराया", pendingDue:"बकाया राशि", advanceSettled:"एडवांस / सेटल", tapToEdit:"किसी भी एंट्री पर टैप करके एडिट/डिलीट करें",
+    noPaymentsYet2:"अभी तक कोई भुगतान दर्ज नहीं", emptyPaymentsTitle:"अभी तक कोई भुगतान नहीं", emptyPaymentsSub:"पहला भुगतान दर्ज करने के लिए Payment टैब दबाएं।",
+    emptyDueTitle:"सब कुछ ठीक है", emptyDueSub:"अभी कोई बकाया पेंडिंग नहीं है।", emptyDriversTitle:"अभी तक कोई ड्राइवर नहीं",
+    emptyDriversSub:"पहला रिक्शा जोड़ने के लिए \"+ नया ड्राइवर\" दबाएं।", emptyExpensesTitle:"कोई खर्च दर्ज नहीं",
+    emptyExpensesSub:"सर्विस, पार्ट्स और रिपेयर के खर्च यहां दिखेंगे।",
+    selectDriverFirst:"पहले ड्राइवर चुनें", pickDate:"तारीख़ चुनें", paymentSavedToast:"भुगतान सेव हुआ ✓",
+    fillDriverFields:"नाम, प्लेट और रोज़ का किराया भरें", driverAddedToast:"ड्राइवर जुड़ गया ✓", driverUpdatedToast:"ड्राइवर अपडेट हुआ ✓",
+    driverDeletedToast:"ड्राइवर हटाया गया", dueAdjustedToast:"बकाया अपडेट हुआ ✓", enterAmount:"राशि डालें",
+    paymentUpdatedToast:"भुगतान अपडेट हुआ ✓", paymentDeletedToast:"भुगतान हटाया गया", deletePaymentConfirm:"यह भुगतान हटाएं? बकाया राशि दोबारा गिनी जाएगी।",
+    deleteDriverConfirm:"इससे उनकी पूरी भुगतान history भी हट जाएगी। यह वापस नहीं होगा।",
+    expenseSavedToast:"खर्च सेव हुआ ✓", expenseUpdatedToast:"खर्च अपडेट हुआ ✓", expenseDeletedToast:"खर्च हटाया गया",
+    deleteExpenseConfirm:"यह खर्च हटाएं?", syncFailToast:"⚠ सेव नहीं हुआ, दोबारा कोशिश करें",
+    syncedToast:"डेटा अपडेट हुआ ✓", couldNotReach:"शीट से कनेक्ट नहीं हो पाया — कनेक्शन चेक करें", noMobileToast:"इस ड्राइवर का सही मोबाइल नंबर सेव नहीं है",
+    settled:"सेटल", due:"बकाया", adv:"एडवांस", whatsappDueMsg:(name,due,plate,rent)=>`नमस्ते ${name} जी,\n\nआपका बकाया ₹${due} है (गाड़ी: ${plate}, ₹${rent}/दिन).\nकृपया जल्द भुगतान कर दें।\n\nधन्यवाद!`,
+    whatsappSettledMsg:(name)=>`नमस्ते ${name} जी,\n\nआपका खाता सेटल है, कोई बकाया नहीं है। धन्यवाद!`
+  }
+};
+const CATEGORY_LABELS = {
+  en: {Service:'Service',Parts:'Parts',Repair:'Repair',Battery:'Battery',Tyre:'Tyre',Charging:'Charging',Insurance:'Insurance',Challan:'Challan',Cleaning:'Cleaning',Advance:'Driver Adv.',Other:'Other'},
+  hi: {Service:'सर्विस',Parts:'पार्ट्स',Repair:'रिपेयर',Battery:'बैटरी',Tyre:'टायर',Charging:'चार्जिंग',Insurance:'बीमा',Challan:'चालान',Cleaning:'सफाई',Advance:'एडवांस',Other:'अन्य'}
+};
+function t(key){ return (T[LANG] && T[LANG][key]) || T.en[key] || key; }
+
+function applyStaticI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key = el.getAttribute('data-i18n');
+    if(T[LANG][key] !== undefined) el.textContent = T[LANG][key];
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{
+    const key = el.getAttribute('data-i18n-ph');
+    if(T[LANG][key] !== undefined) el.setAttribute('placeholder', T[LANG][key]);
+  });
+  document.querySelectorAll('.catBtn[data-cat]').forEach(el=>{
+    const cat = el.getAttribute('data-cat');
+    const txEl = el.querySelector('.tx');
+    if(txEl && CATEGORY_LABELS[LANG][cat]) txEl.textContent = CATEGORY_LABELS[LANG][cat];
+  });
+  document.getElementById('langToggle').textContent = LANG==='en' ? 'हिं' : 'EN';
+  document.documentElement.lang = LANG;
+}
+function toggleLang(){
+  LANG = LANG === 'en' ? 'hi' : 'en';
+  localStorage.setItem('rl_lang', LANG);
+  applyStaticI18n();
+  renderAllScreens();
+  if(document.getElementById('historyModal').classList.contains('open') && currentHistoryDriverId){
+    openHistory(currentHistoryDriverId);
+  }
+}
+
+/* ============ PIN LOCK ============ */
+let pinBuffer = '';
+let pinStage = localStorage.getItem('rl_pin') ? 'enter' : 'create';
+let tempPin = '';
+
+function renderPinDots(){
+  const wrap = document.getElementById('pinDots');
+  wrap.innerHTML = '';
+  for(let i=0;i<4;i++){
+    const d = document.createElement('div');
+    d.className = 'pinDot' + (i < pinBuffer.length ? ' filled' : '');
+    wrap.appendChild(d);
+  }
+}
+function buildPinPad(){
+  const pad = document.getElementById('pinPad');
+  pad.innerHTML = '';
+  const keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+  keys.forEach(k=>{
+    const b = document.createElement('button');
+    b.className = 'pinKey' + (k==='' ? ' ghost' : '');
+    b.textContent = k;
+    if(k!=='') b.onclick = ()=> handlePinKey(k);
+    pad.appendChild(b);
+  });
+}
+function handlePinKey(k){
+  if(k==='⌫'){ pinBuffer = pinBuffer.slice(0,-1); renderPinDots(); return; }
+  if(pinBuffer.length>=4) return;
+  pinBuffer += k;
+  renderPinDots();
+  if(pinBuffer.length===4){
+    setTimeout(()=>processPinEntry(), 150);
+  }
+}
+function processPinEntry(){
+  if(pinStage === 'create'){
+    tempPin = pinBuffer;
+    pinBuffer = '';
+    pinStage = 'confirm';
+    document.getElementById('pinTitle').textContent = t('pinConfirmTitle');
+    document.getElementById('pinSub').textContent = t('pinConfirmSub');
+    renderPinDots();
+  } else if(pinStage === 'confirm'){
+    if(pinBuffer === tempPin){
+      localStorage.setItem('rl_pin', pinBuffer);
+      unlockApp();
+    } else {
+      pinBuffer=''; tempPin=''; pinStage='create';
+      document.getElementById('pinTitle').textContent = t('pinMismatch');
+      document.getElementById('pinSub').textContent = t('pinSetTitle');
+      renderPinDots();
+    }
+  } else {
+    if(pinBuffer === localStorage.getItem('rl_pin')){
+      unlockApp();
+    } else {
+      pinBuffer='';
+      document.getElementById('pinTitle').textContent = t('pinWrong');
+      renderPinDots();
+      if(navigator.vibrate) navigator.vibrate(150);
+    }
+  }
+}
+function unlockApp(){
+  document.getElementById('pinScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  initApp();
+}
+function initPinScreen(){
+  document.getElementById('pinTitle').textContent = pinStage==='create' ? t('pinSetTitle') : t('pinEnterTitle');
+  document.getElementById('pinSub').textContent = pinStage==='create' ? t('pinSetSub') : t('pinEnterSub');
+  renderPinDots();
+  buildPinPad();
+}
+initPinScreen();
+
+/* ============ NAV ============ */
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  document.querySelectorAll('.navItem').forEach(n=>n.classList.toggle('active', n.dataset.screen===name));
+}
+
+/* ============ UTIL ============ */
+function fmt(n){ n = Number(n)||0; return n.toLocaleString('en-IN'); }
+/* Returns yyyy-mm-dd using LOCAL calendar date, not UTC.
+   .toISOString() always converts to UTC first, which silently rolls the
+   date back by one for any positive UTC-offset timezone (e.g. IST, UTC+5:30)
+   whenever the UTC time-of-day crosses midnight — this is what caused
+   sheet-says-31 / app-shows-30. Always derive date keys through this. */
+function dateKey(dt){
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,'0');
+  const day = String(dt.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function todayStr(){ return dateKey(new Date()); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function setLoading(v){ document.getElementById('loadingOverlay').style.display = v ? 'flex' : 'none'; }
+
+/* ============ OPTIMISTIC LOCAL UPDATE HELPERS ============
+   These update DATA in-memory and re-render instantly, without waiting
+   on a network round trip. The actual apiPost() write still happens,
+   but the UI doesn't block on a full re-fetch afterward — this is what
+   makes saves feel instant instead of a save + reload each time. */
+
+function recomputeLocalBalances(driverId){
+  const driver = DATA.drivers.find(d=>d.DriverID===driverId);
+  let bal = driver ? (Number(driver.OpeningDue)||0) : 0;
+  const rows = DATA.payments.filter(p=>p.DriverID===driverId)
+    .sort((a,b)=>{
+      const d = new Date(a.Date) - new Date(b.Date);
+      if(d!==0) return d;
+      return new Date(a.Timestamp) - new Date(b.Timestamp);
+    });
+  rows.forEach(p=>{
+    bal = bal + Number(p.RentForDay||0) - Number(p.AmountReceived||0);
+    p.Balance = bal;
+  });
+  if(driver) driver.CurrentDue = bal;
+}
+
+function renderAllScreens(){
+  renderHome();
+  renderDriverPicker();
+  renderDriversList();
+  renderVehicleSelect();
+  renderExpensesList();
+  saveCache();
+}
+
+function saveCache(){
+  try{ localStorage.setItem('rl_cache', JSON.stringify(DATA)); }catch(e){}
+}
+function loadCache(){
+  try{
+    const c = localStorage.getItem('rl_cache');
+    if(c){ DATA = JSON.parse(c); return true; }
+  }catch(e){}
+  return false;
+}
+
+/* ============ API ============ */
+async function apiGet(action, extra){
+  // POST used instead of GET even for reads — Google caches GET (doGet)
+  // responses at its edge (script.googleusercontent.com/macros/echo),
+  // which was serving stale data. POST bypasses that cache entirely.
+  const payload = Object.assign({ action: action }, extra || {});
+  const res = await fetch(CONFIG.API_URL, { method:'POST', body: JSON.stringify(payload) });
+  return res.json();
+}
+async function apiPost(payload){
+  const res = await fetch(CONFIG.API_URL, { method:'POST', body: JSON.stringify(payload) });
+  return res.json();
+}
+
+/* ============ INIT / REFRESH ============ */
+async function initApp(){
+  applyStaticI18n();
+  document.getElementById('todayLabel').textContent = new Date().toLocaleDateString(LANG==='hi'?'hi-IN':'en-IN',{weekday:'short', day:'numeric', month:'short'});
+  document.getElementById('pDate').value = todayStr();
+  document.getElementById('eDate').value = todayStr();
+  const hadCache = loadCache();
+  if(hadCache){
+    renderAllScreens();
+    refreshAll(false); // silent background sync, no spinner — screen already usable
+  } else {
+    await refreshAll(false); // first-ever load, nothing to show yet, so wait
+  }
+}
+
+async function refreshAll(toast){
+  if(CONFIG.API_URL.includes('PASTE_YOUR')){
+    showToast('⚠ Set CONFIG.API_URL first — see comments in code');
+    return;
+  }
+  const hasCache = localStorage.getItem('rl_cache');
+  if(!hasCache) setLoading(true); // only block the screen on the very first-ever load
+  try{
+    const data = await apiGet('getAll');
+    if(data.error){ showToast('Error: '+data.error); setLoading(false); return; }
+    DATA = data;
+    renderAllScreens();
+    if(toast) showToast('Synced ✓');
+  }catch(err){
+    showToast('Could not reach sheet — check connection');
+  }
+  setLoading(false);
+}
+
+/* ============ HOME ============ */
+function renderHome(){
+  const today = todayStr();
+  const todaysPayments = DATA.payments.filter(p => fmtDate(p.Date) === today);
+  const collected = todaysPayments.reduce((s,p)=> s + Number(p.AmountReceived||0), 0);
+  document.getElementById('todayCollection').textContent = fmt(collected);
+  document.getElementById('todayCount').textContent = LANG==='hi'
+    ? `आज ${todaysPayments.length} भुगतान मिले`
+    : todaysPayments.length + ' payment' + (todaysPayments.length!==1?'s':'') + ' received today';
+
+  const activeDrivers = DATA.drivers.filter(d=> d.Status==='Active');
+  document.getElementById('activeDriversCount').textContent = activeDrivers.length;
+
+  const paidPlates = new Set(todaysPayments.map(p=>p.DriverID));
+  document.getElementById('paidTodayCount').textContent = paidPlates.size;
+  document.getElementById('pendingTodayCount').textContent = Math.max(activeDrivers.length - paidPlates.size, 0);
+
+  const totalDue = DATA.drivers.reduce((s,d)=> s + Number(d.CurrentDue||0), 0);
+  document.getElementById('totalDue').textContent = '₹' + fmt(totalDue);
+
+  const thisMonth = today.slice(0,7);
+  const monthExp = DATA.expenses.filter(e=> fmtDate(e.Date).slice(0,7)===thisMonth).reduce((s,e)=>s+Number(e.Amount||0),0);
+  document.getElementById('monthExpense').textContent = '₹' + fmt(monthExp);
+
+  const recent = [...DATA.payments].sort((a,b)=> new Date(b.Timestamp)-new Date(a.Timestamp)).slice(0,5);
+  const recentList = document.getElementById('recentList');
+  if(recent.length===0){
+    recentList.innerHTML = emptyState('🧾', t('emptyPaymentsTitle'), t('emptyPaymentsSub'));
+  } else {
+    recentList.innerHTML = recent.map(p=>{
+      const bal = Number(p.Balance);
+      return `<div class="card" onclick="openHistory('${p.DriverID}')" style="cursor:pointer;">
+        <div class="avatar">🛺</div>
+        <div class="body">
+          <div class="name">${p.DriverName || ''} <span class="plate">${p.NumberPlate}</span></div>
+          <div class="meta">${fmtDate(p.Date)} · ${p.Mode}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="amt pos mono">+₹${fmt(p.AmountReceived)}</div>
+          <div class="meta" style="margin-top:2px;">${bal>0? t('due')+' ₹'+fmt(bal) : bal<0? t('adv')+' ₹'+fmt(-bal) : t('settled')}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const dueSorted = [...DATA.drivers].filter(d=>d.CurrentDue>0).sort((a,b)=> b.CurrentDue-a.CurrentDue).slice(0,5);
+  const topDueList = document.getElementById('topDueList');
+  if(dueSorted.length===0){
+    topDueList.innerHTML = emptyState('✅', t('emptyDueTitle'), t('emptyDueSub'));
+  } else {
+    topDueList.innerHTML = dueSorted.map(d=>`
+      <div class="card">
+        <div class="avatar" onclick="openHistory('${d.DriverID}')" style="cursor:pointer;">🛺</div>
+        <div class="body" onclick="openHistory('${d.DriverID}')" style="cursor:pointer;">
+          <div class="name">${d.Name} <span class="plate">${d.NumberPlate}</span></div>
+          <div class="meta">${t('dailyRentWord')} ₹${fmt(d.DailyRent)}</div>
+        </div>
+        <div class="amt neg mono">₹${fmt(d.CurrentDue)}</div>
+        <button onclick="event.stopPropagation(); sendWhatsAppReminder('${d.DriverID}')" title="Send WhatsApp reminder" style="background:#25D366; border:none; width:30px; height:30px; border-radius:9px; font-size:14px; flex-shrink:0; margin-left:6px;">📱</button>
+        <button onclick="event.stopPropagation(); sendSMSReminder('${d.DriverID}')" title="Send SMS reminder" style="background:#0A7EA4; border:none; width:30px; height:30px; border-radius:9px; font-size:14px; flex-shrink:0; margin-left:6px;">💬</button>
+      </div>`).join('');
+  }
+
+  renderWeeklyChart();
+}
+
+/* ---------- Weekly collection chart (custom SVG, no external lib) ---------- */
+function renderWeeklyChart(){
+  const days = [];
+  for(let i=6;i>=0;i--){
+    const dt = new Date();
+    dt.setDate(dt.getDate()-i);
+    const key = dateKey(dt);
+    const total = DATA.payments.filter(p=>fmtDate(p.Date)===key).reduce((s,p)=>s+Number(p.AmountReceived||0),0);
+    days.push({ key, label: dt.toLocaleDateString('en-IN',{weekday:'short'}), total });
+  }
+  const max = Math.max(...days.map(d=>d.total), 1);
+  const w = 320, h = 120, barW = 30, gap = (w - barW*7)/8;
+  let bars = '';
+  days.forEach((d,i)=>{
+    const barH = Math.max((d.total/max)*80, d.total>0?4:0);
+    const x = gap + i*(barW+gap);
+    const y = h - 26 - barH;
+    const isToday = i===6;
+    bars += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="6" fill="${isToday?'var(--blue)':'var(--sky)'}" opacity="${isToday?1:0.55}"/>`;
+    if(d.total>0){
+      bars += `<text x="${x+barW/2}" y="${y-6}" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono" font-weight="600" fill="var(--ink)">${d.total>=1000? (d.total/1000).toFixed(1)+'k' : d.total}</text>`;
+    }
+    bars += `<text x="${x+barW/2}" y="${h-8}" text-anchor="middle" font-size="10" font-family="Inter" font-weight="600" fill="${isToday?'var(--blue)':'var(--muted)'}">${d.label}</text>`;
+  });
+  const weekTotal = days.reduce((s,d)=>s+d.total,0);
+  document.getElementById('weeklyChartWrap').innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
+      <span style="font-size:11px; color:var(--muted); font-weight:600;">7-day total</span>
+      <span class="mono" style="font-size:15px; font-weight:700; color:var(--blue);">₹${fmt(weekTotal)}</span>
+    </div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${bars}</svg>`;
+}
+
+/* ---------- WhatsApp reminder ---------- */
+const WA_MSG = {
+  hi: {
+    due: (d,due) => `नमस्ते ${d.Name} जी,\n\nआपका बकाया भुगतान ₹${fmt(due)} है (वाहन: ${d.NumberPlate}, ₹${fmt(d.DailyRent)}/दिन).\nकृपया जल्द से जल्द भुगतान कर दें।\n\nधन्यवाद!`,
+    settled: (d) => `नमस्ते ${d.Name} जी,\n\nआपका खाता पूरी तरह से चुकता है, कोई बकाया नहीं है। धन्यवाद!`
+  },
+  en: {
+    due: (d,due) => `Hi ${d.Name},\n\nYou have a pending due of ₹${fmt(due)} (Vehicle: ${d.NumberPlate}, ₹${fmt(d.DailyRent)}/day).\nPlease clear it at your earliest convenience.\n\nThank you!`,
+    settled: (d) => `Hi ${d.Name},\n\nYour account is fully settled — no dues pending. Thank you!`
+  }
+};
+function sendWhatsAppReminder(driverId){
+  const d = DATA.drivers.find(x=>x.DriverID===driverId);
+  if(!d) return;
+  const mobileDigits = String(d.Mobile||'').replace(/\D/g,'');
+  if(mobileDigits.length < 10){ showToast('No valid mobile number saved for this driver'); return; }
+  const num = mobileDigits.length===10 ? '91'+mobileDigits : mobileDigits;
+  const due = Number(d.CurrentDue||0);
+  const pack = WA_MSG[LANG] || WA_MSG.en;
+  const msg = due > 0 ? pack.due(d, due) : pack.settled(d);
+  window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+/* ---------- Plain SMS reminder (for drivers without WhatsApp) ---------- */
+function sendSMSReminder(driverId){
+  const d = DATA.drivers.find(x=>x.DriverID===driverId);
+  if(!d) return;
+  const mobileDigits = String(d.Mobile||'').replace(/\D/g,'');
+  if(mobileDigits.length < 10){ showToast('No valid mobile number saved for this driver'); return; }
+  const num = mobileDigits.length===10 ? '+91'+mobileDigits : '+'+mobileDigits;
+  const due = Number(d.CurrentDue||0);
+  const pack = WA_MSG[LANG] || WA_MSG.en;
+  const msg = due > 0 ? pack.due(d, due) : pack.settled(d);
+  // iOS and Android expect different separators before the body param on an sms: link.
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const sep = isIOS ? '&' : '?';
+  window.location.href = `sms:${num}${sep}body=${encodeURIComponent(msg)}`;
+}
+function emptyState(ico,title,sub){
+  return `<div class="empty"><div class="ico">${ico}</div><div style="font-weight:700;font-size:13.5px;">${title}</div><p>${sub}</p></div>`;
+}
+function fmtDate(d){
+  // normalise sheet date values (could be Date obj string or yyyy-mm-dd)
+  if(!d) return '';
+  const dt = new Date(d);
+  if(isNaN(dt)) return String(d).slice(0,10);
+  return dateKey(dt);
+}
+
+/* ============ PAYMENT SCREEN ============ */
+function renderDriverPicker(){
+  const q = (document.getElementById('driverSearch').value || '').toLowerCase();
+  const list = DATA.drivers.filter(d=> d.Status==='Active' &&
+    (d.Name.toLowerCase().includes(q) || String(d.NumberPlate).toLowerCase().includes(q)));
+  const wrap = document.getElementById('driverPicker');
+  if(list.length===0){ wrap.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12.5px;">No drivers found</div>'; return; }
+  wrap.innerHTML = list.map(d=>`
+    <div class="driverRow ${selectedDriver && selectedDriver.DriverID===d.DriverID?'selected':''}" onclick="pickDriver('${d.DriverID}')">
+      <span class="plate">${d.NumberPlate}</span>
+      <div class="body">
+        <div class="nm">${d.Name}</div>
+        <div class="due ${d.CurrentDue>0?'amt neg':'amt pos'}">${d.CurrentDue>0? 'Due ₹'+fmt(d.CurrentDue) : d.CurrentDue<0? 'Advance ₹'+fmt(-d.CurrentDue) : 'Settled'}</div>
+      </div>
+    </div>`).join('');
+}
+function pickDriver(id){
+  selectedDriver = DATA.drivers.find(d=>d.DriverID===id);
+  renderDriverPicker();
+  document.getElementById('paymentFormFields').style.display = 'block';
+  document.getElementById('pRent').value = selectedDriver.DailyRent;
+  document.getElementById('pReceived').value = '';
+  updateDueSummary();
+}
+function selectMode(el){
+  document.querySelectorAll('#modeBtns .segBtn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  selectedMode = el.dataset.mode;
+}
+document.getElementById('pRent').addEventListener('input', updateDueSummary);
+document.getElementById('pReceived').addEventListener('input', updateDueSummary);
+function updateDueSummary(){
+  if(!selectedDriver) return;
+  const rent = Number(document.getElementById('pRent').value)||0;
+  const received = Number(document.getElementById('pReceived').value)||0;
+  const newDue = Number(selectedDriver.CurrentDue||0) + rent - received;
+  const box = document.getElementById('dueSummaryBox');
+  box.innerHTML = `Previous due: <b class="mono">₹${fmt(selectedDriver.CurrentDue)}</b> + rent <b class="mono">₹${fmt(rent)}</b> − received <b class="mono">₹${fmt(received)}</b>
+    = <b class="mono" style="color:${newDue>0?'var(--alert)':'var(--success)'}">₹${fmt(newDue)} ${newDue<0?'advance':'due'}</b> after this entry`;
+}
+async function submitPayment(){
+  if(!selectedDriver){ showToast('Select a driver first'); return; }
+  const rent = Number(document.getElementById('pRent').value)||0;
+  const received = Number(document.getElementById('pReceived').value)||0;
+  const date = document.getElementById('pDate').value;
+  if(!date){ showToast('Pick a date'); return; }
+  const remarks = document.getElementById('pRemarks').value;
+  const mode = selectedMode;
+  const driver = selectedDriver;
+
+  const btn = document.getElementById('submitPaymentBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  // fire the write, but don't block the UI on the response
+  const writePromise = apiPost({
+    action:'addPayment', driverId:driver.DriverID, numberPlate:driver.NumberPlate,
+    driverName:driver.Name, date, rentForDay:rent, amountReceived:received,
+    mode, remarks
+  });
+
+  // optimistic local insert — screen updates immediately
+  const tempId = 'tmp_' + Date.now();
+  DATA.payments.push({
+    PaymentID: tempId, Date: date, DriverID: driver.DriverID, NumberPlate: driver.NumberPlate,
+    DriverName: driver.Name, RentForDay: rent, AmountReceived: received,
+    Balance: 0, Mode: mode, Remarks: remarks, Timestamp: new Date().toISOString()
+  });
+  recomputeLocalBalances(driver.DriverID);
+  renderAllScreens();
+
+  showToast('Payment saved ✓');
+  document.getElementById('pReceived').value='';
+  document.getElementById('pRemarks').value='';
+  selectedDriver = null;
+  document.getElementById('paymentFormFields').style.display='none';
+  document.getElementById('driverSearch').value='';
+  showScreen('home');
+
+  const res = await writePromise;
+  btn.disabled = false; btn.textContent = 'Save payment';
+  if(res.error){
+    showToast('⚠ Save failed, resyncing — try again');
+    await refreshAll(false); // roll back to true server state
+    return;
+  }
+  // swap the temp ID for the real one from the sheet
+  const p = DATA.payments.find(x=>x.PaymentID===tempId);
+  if(p) p.PaymentID = res.paymentId;
+}
+
+/* ============ DRIVERS SCREEN ============ */
+function renderDriversList(){
+  const q = (document.getElementById('driversListSearch').value||'').toLowerCase();
+  const list = DATA.drivers.filter(d=> d.Name.toLowerCase().includes(q) || String(d.NumberPlate).toLowerCase().includes(q));
+  const wrap = document.getElementById('driversList');
+  if(list.length===0){ wrap.innerHTML = emptyState('🛺','No drivers yet','Tap "+ Add driver" to onboard your first e-rickshaw.'); return; }
+  wrap.innerHTML = list.map(d=>`
+    <div class="card" onclick="openHistory('${d.DriverID}')">
+      <div class="avatar">🛺</div>
+      <div class="body">
+        <div class="name">${d.Name} <span class="plate">${d.NumberPlate}</span></div>
+        <div class="meta">₹${fmt(d.DailyRent)}/day · ${d.Mobile||'—'}</div>
+      </div>
+      <div class="amt ${d.CurrentDue>0?'neg':'pos'} mono">${d.CurrentDue>0? '₹'+fmt(d.CurrentDue) : d.CurrentDue<0? '+₹'+fmt(-d.CurrentDue) : '✓'}</div>
+    </div>`).join('');
+}
+function renderVehicleSelect(){
+  const sel = document.getElementById('eVehicle');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">General / fleet-wide</option>' +
+    DATA.drivers.map(d=>`<option value="${d.NumberPlate}">${d.NumberPlate} — ${d.Name}</option>`).join('');
+  sel.value = current;
+}
+function openAddDriver(){
+  document.getElementById('ndJoin').value = todayStr();
+  openModal('addDriverModal');
+}
+async function submitNewDriver(){
+  const name = document.getElementById('ndName').value.trim();
+  const plate = document.getElementById('ndPlate').value.trim().toUpperCase();
+  const rent = Number(document.getElementById('ndRent').value);
+  const mobile = document.getElementById('ndMobile').value.trim();
+  const joinDate = document.getElementById('ndJoin').value;
+  const opening = Number(document.getElementById('ndOpening').value) || 0;
+  if(!name || !plate || !rent){ showToast('Fill name, plate and daily rent'); return; }
+
+  const writePromise = apiPost({ action:'addDriver', name, numberPlate:plate, mobile, dailyRent:rent, joinDate, openingDue:opening });
+
+  const tempId = 'tmp_' + Date.now();
+  DATA.drivers.push({ DriverID: tempId, Name:name, NumberPlate:plate, Mobile:mobile, DailyRent:rent, JoinDate:joinDate, Status:'Active', OpeningDue:opening, CurrentDue:opening });
+  renderAllScreens();
+
+  showToast('Driver added ✓');
+  ['ndName','ndPlate','ndMobile','ndRent','ndOpening'].forEach(id=>document.getElementById(id).value='');
+  closeModal('addDriverModal');
+
+  const res = await writePromise;
+  if(res.error){ showToast('⚠ Save failed, resyncing'); await refreshAll(false); return; }
+  const d = DATA.drivers.find(x=>x.DriverID===tempId);
+  if(d) d.DriverID = res.driverId;
+  saveCache();
+}
+let currentHistoryDriverId = null;
+
+function openHistory(driverId){
+  currentHistoryDriverId = driverId;
+  const d = DATA.drivers.find(x=>x.DriverID===driverId);
+  if(!d) return;
+  document.getElementById('historyDriverName').innerHTML = `${d.Name} <span class="plate">${d.NumberPlate}</span>`;
+  const history = DATA.payments.filter(p=>p.DriverID===driverId).sort((a,b)=> new Date(b.Date)-new Date(a.Date));
+  const content = document.getElementById('historyContent');
+  const summary = `<div style="display:flex;gap:10px;margin-bottom:14px;">
+      <div style="flex:1;background:var(--paper);border-radius:12px;padding:10px;text-align:center;">
+        <div class="mono" style="font-weight:700;font-size:15px;">₹${fmt(d.DailyRent)}</div><div style="font-size:10.5px;color:var(--muted);">Daily rent</div>
+      </div>
+      <div style="flex:1;background:${d.CurrentDue>0?'var(--alert-bg)':'var(--success-bg)'};border-radius:12px;padding:10px;text-align:center;">
+        <div class="mono" style="font-weight:700;font-size:15px;color:${d.CurrentDue>0?'var(--alert)':'var(--success)'}">₹${fmt(Math.abs(d.CurrentDue))}</div>
+        <div style="font-size:10.5px;color:var(--muted);">${d.CurrentDue>0?'Pending due':'Advance / settled'}</div>
+      </div>
+    </div>`;
+  if(history.length===0){
+    content.innerHTML = summary + emptyState('🧾','No payments recorded yet','');
+  } else {
+    content.innerHTML = summary + `<div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Tap any entry to edit or delete it</div>` + history.map(p=>`
+      <div class="card" onclick="openEditPayment('${p.PaymentID}')" style="cursor:pointer;">
+        <div class="avatar">${p.Mode==='Adjustment'?'⚖️':p.Mode==='UPI'?'📱':'💵'}</div>
+        <div class="body"><div class="name">${fmtDate(p.Date)}</div><div class="meta">${p.Remarks||p.Mode}</div></div>
+        <div style="text-align:right;">
+          <div class="amt ${Number(p.AmountReceived)>=Number(p.RentForDay)?'pos':'pos'} mono">+₹${fmt(p.AmountReceived)}</div>
+          <div class="meta">bal ₹${fmt(p.Balance)}</div>
+        </div>
+      </div>`).join('');
+  }
+  openModal('historyModal');
+}
+
+/* ---- Edit / Delete driver ---- */
+function openEditDriver(){
+  const d = DATA.drivers.find(x=>x.DriverID===currentHistoryDriverId);
+  if(!d) return;
+  document.getElementById('edName').value = d.Name;
+  document.getElementById('edPlate').value = d.NumberPlate;
+  document.getElementById('edMobile').value = d.Mobile;
+  document.getElementById('edRent').value = d.DailyRent;
+  document.querySelectorAll('#edStatusBtns .segBtn').forEach(b=>b.classList.toggle('active', b.dataset.status===d.Status));
+  openModal('editDriverModal');
+}
+function selectEdStatus(el){
+  document.querySelectorAll('#edStatusBtns .segBtn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+async function submitEditDriver(){
+  const status = document.querySelector('#edStatusBtns .segBtn.active').dataset.status;
+  const name = document.getElementById('edName').value.trim();
+  const numberPlate = document.getElementById('edPlate').value.trim().toUpperCase();
+  const mobile = document.getElementById('edMobile').value.trim();
+  const dailyRent = Number(document.getElementById('edRent').value);
+
+  const writePromise = apiPost({ action:'updateDriver', driverId: currentHistoryDriverId, name, numberPlate, mobile, dailyRent, status });
+
+  const d = DATA.drivers.find(x=>x.DriverID===currentHistoryDriverId);
+  if(d){ d.Name=name; d.NumberPlate=numberPlate; d.Mobile=mobile; d.DailyRent=dailyRent; d.Status=status; }
+  DATA.payments.filter(p=>p.DriverID===currentHistoryDriverId).forEach(p=>{ p.NumberPlate=numberPlate; p.DriverName=name; });
+  renderAllScreens();
+
+  showToast('Driver updated ✓');
+  closeModal('editDriverModal');
+  closeModal('historyModal');
+
+  const res = await writePromise;
+  if(res.error){ showToast('⚠ Save failed, resyncing'); await refreshAll(false); }
+}
+async function confirmDeleteDriver(){
+  const d = DATA.drivers.find(x=>x.DriverID===currentHistoryDriverId);
+  if(!d) return;
+  if(!confirm(`Delete ${d.Name} (${d.NumberPlate})? This also removes their entire payment history. This can't be undone.`)) return;
+
+  const driverId = currentHistoryDriverId;
+  const writePromise = apiPost({ action:'deleteDriver', driverId });
+
+  DATA.drivers = DATA.drivers.filter(x=>x.DriverID!==driverId);
+  DATA.payments = DATA.payments.filter(x=>x.DriverID!==driverId);
+  renderAllScreens();
+
+  showToast('Driver deleted');
+  closeModal('historyModal');
+
+  const res = await writePromise;
+  if(res.error){ showToast('⚠ Delete failed, resyncing'); await refreshAll(false); }
+}
+
+/* ---- Adjust due ---- */
+let adjDir = 1;
+function openAdjustDue(){
+  document.getElementById('adjAmount').value = '';
+  document.getElementById('adjReason').value = '';
+  adjDir = 1;
+  document.querySelectorAll('#adjDirBtns .segBtn').forEach((b,i)=>b.classList.toggle('active', i===0));
+  openModal('adjustDueModal');
+}
+function selectAdjDir(el){
+  document.querySelectorAll('#adjDirBtns .segBtn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  adjDir = Number(el.dataset.dir);
+}
+async function submitAdjustDue(){
+  const amt = Number(document.getElementById('adjAmount').value);
+  if(!amt){ showToast('Enter an amount'); return; }
+  const d = DATA.drivers.find(x=>x.DriverID===currentHistoryDriverId);
+  const reason = document.getElementById('adjReason').value;
+  const signedAmt = amt*adjDir;
+
+  const writePromise = apiPost({
+    action:'adjustDue', driverId: currentHistoryDriverId, numberPlate: d.NumberPlate, driverName: d.Name,
+    date: todayStr(), amount: signedAmt, reason
+  });
+
+  const tempId = 'tmp_' + Date.now();
+  DATA.payments.push({
+    PaymentID: tempId, Date: todayStr(), DriverID: d.DriverID, NumberPlate: d.NumberPlate, DriverName: d.Name,
+    RentForDay: signedAmt>0?signedAmt:0, AmountReceived: signedAmt<0?-signedAmt:0,
+    Balance: 0, Mode: 'Adjustment', Remarks: reason, Timestamp: new Date().toISOString()
+  });
+  recomputeLocalBalances(d.DriverID);
+  renderAllScreens();
+
+  showToast('Due adjusted ✓');
+  closeModal('adjustDueModal');
+  openHistory(currentHistoryDriverId);
+
+  const res = await writePromise;
+  if(res.error){ showToast('⚠ Save failed, resyncing'); await refreshAll(false); return; }
+  const p = DATA.payments.find(x=>x.PaymentID===tempId);
+  if(p) p.PaymentID = res.paymentId || tempId;
+  saveCache();
+}
+
+/* ---- Edit / Delete payment ---- */
+let currentEditPaymentId = null;
+function openEditPayment(paymentId){
+  const p = DATA.payments.find(x=>x.PaymentID===paymentId);
+  if(!p) return;
+  currentEditPaymentId = paymentId;
+  document.getElementById('epDate').value = fmtDate(p.Date);
+  document.getElementById('epRent').value = p.RentForDay;
+  document.getElementById('epReceived').value = p.AmountReceived;
+  document.getElementById('epRemarks').value = p.Remarks;
+  document.querySelectorAll('#epModeBtns .segBtn').forEach(b=>b.classList.toggle('active', b.dataset.mode===p.Mode));
+  openModal('editPaymentModal');
+}
+function selectEpMode(el){
+  document.querySelectorAll('#epModeBtns .segBtn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+async function submitEditPayment(){
+  const mode = document.querySelector('#epModeBtns .segBtn.active').dataset.mode;
+  const date = document.getElementById('epDate').value;
+  const rentForDay = Number(document.getElementById('epRent').value);
+  const amountReceived = Number(document.getElementById('epReceived').value);
+  const remarks = document.getElementById('epRemarks').value;
+
+  const writePromise = apiPost({ action:'updatePayment', paymentId: currentEditPaymentId, date, rentForDay, amountReceived, mode, remarks });
+
+  const p = DATA.payments.find(x=>x.PaymentID===currentEditPaymentId);
+  if(p){
+    p.Date=date; p.RentForDay=rentForDay; p.AmountReceived=amountReceived; p.Mode=mode; p.Remarks=remarks;
+    recomputeLocalBalances(p.DriverID);
+  }
+  renderAllScreens();
+
+  showToast('Payment updated ✓');
+  closeModal('editPaymentModal');
+  if(currentHistoryDriverId) openHistory(currentHistoryDriverId);
+
+  const res = await writePromise;
+  if(res.error){ showToast('⚠ Save failed, resyncing'); await refreshAll(false); }
+}
+async function confirmDeletePayment(){
+  if(!confirm('Delete this payment entry? Due amounts will be recalculated.')) return;
+  const p = DATA.payments.find(x=>x.PaymentID===currentEditPaymentId);
+  const driverId = p ? p.DriverID : null;
+
+  const writePromise = apiPost({ action:'deletePayment', paymentId: currentEditPaymentId });
+
+  DATA.payments = DATA.payments.filter(x=>x.PaymentID!==currentEditPaymentId);
+  if(driverId) recomputeLocalBalances(driverId);
+  renderAllScreens();
+
+  showToast('Payment deleted');
+  closeModal('editPaymentModal');
+  if(currentHistoryDriverId) openHistory(currentHistoryDriverId);
+
+  const res = await writePromise;
+  if(res.error){ showToast('⚠ Delete failed, resyncing'); await refreshAll(false); }
+}
+
+/* ============ EXPENSES SCREEN ============ */
+function selectCat(el){
+  document.querySelectorAll('#catBtns .catBtn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  selectedCat = el.dataset.cat;
+}
+async function submitExpense(){
+  const amount = Number(document.getElementById('eAmount').value);
+  if(!amount){ showToast('Enter an amount'); return; }
+  const date = document.getElementById('eDate').value;
+  const numberPlate = document.getElementById('eVehicle').value;
+  const description = document.getElementById('eDesc').value;
+  const category = selectedCat;
+
+  const writePromise = apiPost({ action:'addExpense', date, category, numberPlate, description, amount });
+
+  const tempId = 'tmp_' + Date.now();
+  DATA.expenses.push({ ExpenseID: tempId, Date: date, NumberPlate: numberPlate, Category: category, Description: description, Amount: amount, Timestamp: new Date().toISOString() });
+  renderAllScreens();
+
+  showToast('Expense saved ✓');
+  document.getElementById('eAmount').value='';
+  document.getElementById('eDesc').value='';
+
+  const res = await writePromise;
+  if(res.error){ showToast('⚠ Save failed, resyncing'); await refreshAll(false); return; }
+  const e = DATA.expenses.find(x=>x.ExpenseID===tempId);
+  if(e) e.ExpenseID = res.expenseId;
+  saveCache();
+}
+function renderExpensesList(){
+  const list = [...DATA.expenses].sort((a,b)=> new Date(b.Timestamp)-new Date(a.Timestamp)).slice(0,15);
+  const wrap = document.getElementById('expensesList');
+  const icons = {Service:'🧰',Parts:'⚙️',Repair:'🔩',Battery:'🔋',Tyre:'🛞',Charging:'🔌',Insurance:'🛡️',Challan:'🚨',Cleaning:'🧼',Advance:'💰',Other:'📦'};
+  if(list.length===0){ wrap.innerHTML = emptyState('🔧','No expenses logged','Service, parts and repair costs will show up here.'); return; }
+  wrap.innerHTML = list.map(e=>`
+    <div class="card" onclick="openEditExpense('${e.ExpenseID}')" style="cursor:pointer;">
+      <div class="avatar">${icons[e.Category]||'📦'}</div>
+      <div class="body">
+        <div class="name">${e.Category}${e.NumberPlate? ' · <span class="plate">'+e.NumberPlate+'</span>':''}</div>
+        <div class="meta">${fmtDate(e.Date)}${e.Description? ' · '+e.Description:''}</div>
+      </div>
+      <div class="amt mono" style="color:var(--amber);">−₹${fmt(e.Amount)}</div>
+    </div>`).join('');
+}
+
+let currentEditExpenseId = null;
+function openEditExpense(expenseId){
+  const e = DATA.expenses.find(x=>x.ExpenseID===expenseId);
+  if(!e) return;
+  currentEditExpenseId = expenseId;
+  document.getElementById('eeDate').value = fmtDate(e.Date);
+  document.getElementById('eeAmount').value = e.Amount;
+  document.getElementById('eeDesc').value = e.Description;
+  document.querySelectorAll('#eeCatBtns .catBtn').forEach(b=>b.classList.toggle('active', b.dataset.cat===e.Category));
+  openModal('editExpenseModal');
+}
+function selectEeCat(el){
+  document.querySelectorAll('#eeCatBtns .catBtn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+async function submitEditExpense(){
+  const category = document.querySelector('#eeCatBtns .catBtn.active').dataset.cat;
+  const date = document.getElementById('eeDate').value;
+  const amount = Number(document.getElementById('eeAmount').value);
+  const description = document.getElementById('eeDesc').value;
+
+  const writePromise = apiPost({ action:'updateExpense', expenseId: currentEditExpenseId, date, category, amount, description });
+
+  const e = DATA.expenses.find(x=>x.ExpenseID===currentEditExpenseId);
+  if(e){ e.Date=date; e.Category=category; e.Amount=amount; e.Description=description; }
+  renderAllScreens();
+
+  showToast('Expense updated ✓');
+  closeModal('editExpenseModal');
+
+  const res = await writePromise;
+  if(res.error){ showToast('⚠ Save failed, resyncing'); await refreshAll(false); }
+}
+async function confirmDeleteExpense(){
+  if(!confirm('Delete this expense entry?')) return;
+  const writePromise = apiPost({ action:'deleteExpense', expenseId: currentEditExpenseId });
+
+  DATA.expenses = DATA.expenses.filter(x=>x.ExpenseID!==currentEditExpenseId);
+  renderAllScreens();
+
+  showToast('Expense deleted');
+  closeModal('editExpenseModal');
+
+  const res = await writePromise;
+  if(res.error){ showToast('⚠ Delete failed, resyncing'); await refreshAll(false); }
+}
+
+/* ============ MODALS ============ */
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+</script>
+</body>
+</html>
